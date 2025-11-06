@@ -4,5 +4,8 @@
     "source.fixAll.eslint": true
   },
   "eslint.validate": ["typescript", "typescriptreact", "javascript", "javascriptreact"],
-  "prettier.requireConfig": true
+  "prettier.requireConfig": true,
+  "github.copilot.chat.commitMessageGeneration.instructions": {
+    "type": "Generate a concise and clear git commit message based on the selected code changes. Message should have a subject not greater than 80 chars. Message should have a body not more that 5 bullet points with max 50 characters each and add emojis. Ensure the message accurately reflects the changes made. "
+  }
 }
