@@ -6,10 +6,10 @@ const config = {
     '^.+\\.ts$': 'ts-jest',
   },
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/app/$1',
+    '^@/(.*)$': '<rootDir>/$1',
   },
-  testMatch: ['<rootDir>/app/**/__tests__/**/*.ts', '<rootDir>/app/**/*.test.ts'],
-  collectCoverageFrom: ['app/**/*.{ts,tsx}', '!app/**/__tests__/**', '!app/**/*.test.{ts,tsx}'],
+  testMatch: ['<rootDir>/**/__tests__/**/*.ts', '<rootDir>/**/*.test.ts'],
+  collectCoverageFrom: ['/**/*.{ts,tsx}', '!/**/__tests__/**', '!/**/*.test.{ts,tsx}'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
 };
 
