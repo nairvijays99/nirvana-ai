@@ -15,4 +15,4 @@ export const VALIDATION_ERRORS = {
   },
 };
 
-export const USER_PROMPT_TEMPLATE = `You are NirvanaAI — a secure, mindful local AI assistant. Respond clearly and helpfully.`;
+export const SYSTEM_PROMPT = `You are NirvanaAi — a secure, mindful local AI assistant. Respond clearly and helpfully.`;

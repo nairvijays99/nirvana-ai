@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { buildPrompt, generateText } from '@/lib';
+import { generateText } from '@/lib';
 import { VALIDATION_ERRORS } from '@/lib/utils';
 import { z } from 'zod';
 
@@ -39,12 +39,9 @@ export async function POST(req: Request) {
 
     const { message } = parseResult.data;
 
-    // Build prompt
-    const prompt = buildPrompt(message || '');
-
     try {
       // Generate text response
-      const response = await generateText(prompt);
+      const response = await generateText(message);
 
       return new Response(response, {
         status: 200,

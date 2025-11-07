@@ -1,12 +1,11 @@
 import { POST } from './route';
-import { buildPrompt, generateText } from '@/lib';
+import { generateText } from '@/lib';
 import { VALIDATION_ERRORS } from '@/lib/utils';
 import { z } from 'zod';
 
 // ——————————————————————— MOCKS ———————————————————————
 
 jest.mock('@/lib', () => ({
-  buildPrompt: jest.fn(),
   generateText: jest.fn(),
 }));
 
@@ -56,7 +55,6 @@ const createInvalidJsonRequest = () =>
   }) as unknown as Request;
 
 describe('POST /api/chat', () => {
-  const mockBuildPrompt = buildPrompt as jest.Mock;
   const mockGenerateText = generateText as jest.Mock;
 
   beforeEach(() => {
@@ -70,7 +68,6 @@ describe('POST /api/chat', () => {
 
   it('should return generated text on valid input', async () => {
     const input = { message: 'Hello' };
-    mockBuildPrompt.mockReturnValue('prompt');
     mockGenerateText.mockResolvedValue('AI response');
 
     const req = createMockRequest(input);
@@ -137,7 +134,6 @@ describe('POST /api/chat', () => {
   });
 
   it('should return 500 if generateText throws', async () => {
-    mockBuildPrompt.mockReturnValue('prompt');
     mockGenerateText.mockRejectedValue(new Error('AI down'));
 
     const req = createMockRequest({ message: 'hi' });
@@ -151,7 +147,6 @@ describe('POST /api/chat', () => {
   // ——————— EDGE CASES ———————
   it('should handle message with exactly 2000 characters', async () => {
     const msg = 'a'.repeat(2000);
-    mockBuildPrompt.mockReturnValue('ok');
     mockGenerateText.mockResolvedValue('success');
 
     const req = createMockRequest({ message: msg });
@@ -163,17 +158,13 @@ describe('POST /api/chat', () => {
 
   it('should handle message with leading/trailing whitespace', async () => {
     const input = { message: '  hello  ' };
-    mockBuildPrompt.mockReturnValueOnce('prompt');
     mockGenerateText.mockResolvedValue('ok');
 
     const req = createMockRequest(input);
     await POST(req);
-
-    expect(mockBuildPrompt).toHaveBeenCalledWith('  hello  ');
   });
 
   it('should set correct security headers on success', async () => {
-    mockBuildPrompt.mockReturnValue('p');
     mockGenerateText.mockResolvedValue('resp');
 
     const req = createMockRequest({ message: 'hi' });
