@@ -1,176 +1,254 @@
+// app/api/chat/route.test.ts
 import { POST } from './route';
-import { generateText } from '@/lib';
-import { VALIDATION_ERRORS } from '@/lib/utils';
-import { z } from 'zod';
+import { NextRequest } from 'next/server';
+import { ollama } from 'ollama-ai-provider-v2';
+import { streamText } from 'ai';
+import { VALIDATION_ERRORS, SYSTEM_PROMPT } from '@/lib';
 
-// ——————————————————————— MOCKS ———————————————————————
-
-jest.mock('@/lib', () => ({
-  generateText: jest.fn(),
+// ---------------------------------------------------------------------
+// Mocks
+// ---------------------------------------------------------------------
+jest.mock('ollama-ai-provider-v2', () => ({
+  ollama: jest.fn(),
+}));
+jest.mock('ai', () => ({
+  convertToModelMessages: jest.fn(),
+  streamText: jest.fn(),
 }));
 
-// Properly mock NextResponse.json to return a real Response
-jest.mock('next/server', () => {
-  const mockJsonResponse = (data: any, init?: ResponseInit) => {
-    return new Response(JSON.stringify(data), {
-      status: init?.status || 200,
-      headers: {
-        'Content-Type': 'application/json',
-        ...init?.headers,
-      },
-    });
-  };
+const mockOllama = ollama as jest.Mock;
+const mockStreamText = streamText as jest.Mock;
+const mockConvertMessages = require('ai').convertToModelMessages as jest.Mock;
 
-  return {
-    NextResponse: {
-      json: jest.fn().mockImplementation(mockJsonResponse),
-    },
-  };
+// ---------------------------------------------------------------------
+// Test setup
+// ---------------------------------------------------------------------
+beforeAll(() => {
+  jest.spyOn(console, 'error').mockImplementation(() => {});
+});
+afterAll(() => {
+  jest.restoreAllMocks();
 });
 
-// Mock global Response for `new Response(...)` in success path
-const OriginalResponse = global.Response;
-global.Response = class extends Response {
-  constructor(body?: BodyInit | null, init?: ResponseInit) {
-    super(body, {
-      status: init?.status || 200,
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'Cache-Control': 'no-store',
-        'X-Content-Type-Options': 'nosniff',
-        ...init?.headers,
-      },
-    });
-  }
-} as any;
-
-const createMockRequest = (body: any) =>
-  ({
-    json: jest.fn().mockResolvedValue(body),
-  }) as unknown as Request;
-
-const createInvalidJsonRequest = () =>
-  ({
-    json: jest.fn().mockRejectedValue(new SyntaxError('Invalid JSON')),
-  }) as unknown as Request;
-
 describe('POST /api/chat', () => {
-  const mockGenerateText = generateText as jest.Mock;
+  const validMessage = {
+    id: 'msg1',
+    role: 'user' as const,
+    parts: [{ type: 'text' as const, text: 'Hello' }],
+  };
+  const validBody = { messages: [validMessage] };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    console.error = jest.fn();
+    process.env.OLLAMA_MODEL = 'llama3.1:8b';
   });
 
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
+  // -------------------------------------------------
+  // 1. SUCCESS
+  // -------------------------------------------------
+  it('should stream a response for a valid payload', async () => {
+    const mockModel = { id: 'llama3.1:8b' };
+    mockOllama.mockReturnValue(mockModel);
 
-  it('should return generated text on valid input', async () => {
-    const input = { message: 'Hello' };
-    mockGenerateText.mockResolvedValue('AI response');
+    const mockResult = {
+      toUIMessageStreamResponse: jest.fn().mockReturnValue(new Response('stream', { status: 200 })),
+    };
+    mockStreamText.mockResolvedValue(mockResult);
+    mockConvertMessages.mockReturnValue([{ role: 'user', content: 'Hello' }]);
 
-    const req = createMockRequest(input);
+    const req = new NextRequest('http://localhost/api/chat', {
+      method: 'POST',
+      body: JSON.stringify(validBody),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
     const res = await POST(req);
-
     expect(res.status).toBe(200);
-    expect(await res.text()).toBe('AI response');
-    expect(res.headers.get('Content-Type')).toBe('text/plain; charset=utf-8');
-    expect(res.headers.get('Cache-Control')).toBe('no-store');
+    expect(mockOllama).toHaveBeenCalledWith('llama3.1:8b');
+    expect(mockConvertMessages).toHaveBeenCalledWith([validMessage]);
+    expect(mockStreamText).toHaveBeenCalledWith({
+      model: mockModel,
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: 'Hello' }],
+      temperature: 0.7,
+    });
+    expect(mockResult.toUIMessageStreamResponse).toHaveBeenCalledWith({
+      headers: expect.objectContaining({
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      }),
+    });
   });
 
-  it('should return 400 for invalid JSON', async () => {
-    const req = createInvalidJsonRequest();
+  // -------------------------------------------------
+  // 2. INVALID JSON (parse error)
+  // -------------------------------------------------
+  it('should return 400 for malformed JSON', async () => {
+    const req = new NextRequest('http://localhost/api/chat', {
+      method: 'POST',
+      body: '{ "messages": [ { "id": "1", "role": "user", "parts": [] }', // <-- broken
+      headers: { 'Content-Type': 'application/json' },
+    });
+
     const res = await POST(req);
-    const data = await res.json();
+    const json = await res.json();
 
     expect(res.status).toBe(400);
-    expect(data).toEqual({ error: VALIDATION_ERRORS.INVALID_JSON });
+    expect(json.error).toBe(VALIDATION_ERRORS.INVALID_JSON);
   });
 
-  it('should return 400 if message is missing', async () => {
-    const req = createMockRequest({});
+  // -------------------------------------------------
+  // 3. ZOD validation failures
+  // -------------------------------------------------
+  it('should return 400 when messages array is empty', async () => {
+    const req = new NextRequest('http://localhost/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ messages: [] }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
     const res = await POST(req);
-    const data = await res.json();
+    const json = await res.json();
 
     expect(res.status).toBe(400);
-    expect(data.error).toBe(VALIDATION_ERRORS.MESSAGE.REQUIRED);
+    expect(json.error).toBe(VALIDATION_ERRORS.INVALID_JSON);
+    expect(json.details).toContainEqual(
+      expect.objectContaining({
+        code: 'too_small',
+        path: ['messages'],
+        minimum: 1,
+        inclusive: true,
+      })
+    );
   });
 
-  it('should return 400 if message is empty string', async () => {
-    const req = createMockRequest({ message: '' });
+  it('should return 400 when a text part is empty', async () => {
+    const payload = {
+      messages: [
+        {
+          id: 'msg1',
+          role: 'user',
+          parts: [{ type: 'text', text: '' }], // <-- violates min(1)
+        },
+      ],
+    };
+
+    const req = new NextRequest('http://localhost/api/chat', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
     const res = await POST(req);
-    const data = await res.json();
+    const json = await res.json();
 
     expect(res.status).toBe(400);
-    expect(data.error).toBe(VALIDATION_ERRORS.MESSAGE.EMPTY);
+    expect(json.error).toBe(VALIDATION_ERRORS.INVALID_JSON);
+    expect(json.details).toContainEqual(
+      expect.objectContaining({
+        code: 'too_small',
+        path: ['messages', 0, 'parts', 0, 'text'],
+        message: expect.stringContaining('>=1'), // Zod 3.22+ wording
+        minimum: 1,
+        inclusive: true,
+      })
+    );
   });
 
-  it('should return 400 if message exceeds 2000 characters', async () => {
-    const req = createMockRequest({ message: 'a'.repeat(2001) });
-    const res = await POST(req);
-    const data = await res.json();
+  // -------------------------------------------------
+  // 4. Model configuration errors
+  // -------------------------------------------------
+  it('should return 503 when OLLAMA_MODEL env is missing', async () => {
+    delete process.env.OLLAMA_MODEL;
 
-    expect(res.status).toBe(400);
-    expect(data.error).toBe(VALIDATION_ERRORS.MESSAGE.TOO_LONG);
+    const req = new NextRequest('http://localhost/api/chat', {
+      method: 'POST',
+      body: JSON.stringify(validBody),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    const res = await POST(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(503);
+    expect(json.error).toBe(VALIDATION_ERRORS.MODEL_NOT_CONFIGURED);
   });
 
-  it('should return 400 for non-object body (e.g., string)', async () => {
-    const req = createMockRequest('invalid');
-    const res = await POST(req);
-    const data = await res.json();
+  it('should return 503 when ollama() returns null', async () => {
+    mockOllama.mockReturnValue(null);
 
-    expect(res.status).toBe(400);
-    expect(data.error).toMatch(/Expected object/i);
+    const req = new NextRequest('http://localhost/api/chat', {
+      method: 'POST',
+      body: JSON.stringify(validBody),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    const res = await POST(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(503);
+    expect(json.error).toBe(VALIDATION_ERRORS.MODEL_NOT_AVAILABLE);
   });
 
-  it('should return first validation error only', async () => {
-    const req = createMockRequest({ message: '' });
-    const res = await POST(req);
-    const data = await res.json();
+  // -------------------------------------------------
+  // 5. Network / Ollama errors
+  // -------------------------------------------------
+  it('should return 502 for fetch-failed / ECONNREFUSED', async () => {
+    mockOllama.mockReturnValue({});
 
-    expect(res.status).toBe(400);
-    expect(data.error).toBe(VALIDATION_ERRORS.MESSAGE.EMPTY);
+    const err = new Error('fetch failed');
+    // @ts-ignore – simulate Node’s cause
+    err.cause = { code: 'ECONNREFUSED' };
+    mockStreamText.mockRejectedValue(err);
+
+    const req = new NextRequest('http://localhost/api/chat', {
+      method: 'POST',
+      body: JSON.stringify(validBody),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    const res = await POST(req);
+    const json = await res.json();
+
+    expect(res.status).toBe(502);
+    expect(json.error).toBe(VALIDATION_ERRORS.MODEL_REQUEST_FAIL);
   });
 
-  it('should return 500 if generateText throws', async () => {
-    mockGenerateText.mockRejectedValue(new Error('AI down'));
+  // -------------------------------------------------
+  // 6. Generic / unknown errors
+  // -------------------------------------------------
+  it('should return 500 for generic errors', async () => {
+    mockOllama.mockReturnValue({});
+    mockStreamText.mockRejectedValue(new Error('boom'));
 
-    const req = createMockRequest({ message: 'hi' });
+    const req = new NextRequest('http://localhost/api/chat', {
+      method: 'POST',
+      body: JSON.stringify(validBody),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
     const res = await POST(req);
-    const data = await res.json();
+    const json = await res.json();
 
     expect(res.status).toBe(500);
-    expect(data).toEqual({ error: 'Internal server error' });
+    expect(json.error).toBe(VALIDATION_ERRORS.INTERNAL_SERVER_ERROR);
+    expect(json.message).toBe('boom');
   });
 
-  // ——————— EDGE CASES ———————
-  it('should handle message with exactly 2000 characters', async () => {
-    const msg = 'a'.repeat(2000);
-    mockGenerateText.mockResolvedValue('success');
+  it('should return 500 for non-Error throws', async () => {
+    mockOllama.mockReturnValue({});
+    mockStreamText.mockRejectedValue('string-error');
 
-    const req = createMockRequest({ message: msg });
+    const req = new NextRequest('http://localhost/api/chat', {
+      method: 'POST',
+      body: JSON.stringify(validBody),
+      headers: { 'Content-Type': 'application/json' },
+    });
+
     const res = await POST(req);
+    const json = await res.json();
 
-    expect(res.status).toBe(200);
-    expect(await res.text()).toBe('success');
-  });
-
-  it('should handle message with leading/trailing whitespace', async () => {
-    const input = { message: '  hello  ' };
-    mockGenerateText.mockResolvedValue('ok');
-
-    const req = createMockRequest(input);
-    await POST(req);
-  });
-
-  it('should set correct security headers on success', async () => {
-    mockGenerateText.mockResolvedValue('resp');
-
-    const req = createMockRequest({ message: 'hi' });
-    const res = await POST(req);
-
-    expect(res.headers.get('Cache-Control')).toBe('no-store');
-    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+    expect(res.status).toBe(500);
+    expect(json.error).toBe(VALIDATION_ERRORS.UNKNOWN_ERROR);
   });
 });
