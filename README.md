@@ -28,3 +28,7 @@ bun dev
 
 <img width="1072" height="1086" alt="NirvanaAi-Phase2-preview" src="https://github.com/user-attachments/assets/5ab2c197-4aa5-4c44-894e-67c00ab873e5" />
 
+## Phase 3
+
+Auth and persistence
+
