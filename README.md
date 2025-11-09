@@ -32,3 +32,11 @@ bun dev
 
 Auth and persistence
 
+## Phase 4
+
+RAG (Ingest knowledge)
+
+## Phase 5
+
+Essential/Starter Tools
+
