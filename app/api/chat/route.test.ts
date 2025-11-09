@@ -251,4 +251,34 @@ describe('POST /api/chat', () => {
     expect(res.status).toBe(500);
     expect(json.error).toBe(VALIDATION_ERRORS.UNKNOWN_ERROR);
   });
+
+  it('should accept step-start and step-end parts', async () => {
+    const payload = {
+      messages: [
+        {
+          id: 'u1',
+          role: 'user',
+          parts: [{ type: 'text', text: 'Hi' }],
+        },
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [{ type: 'step-start' }, { type: 'text', text: 'Ok' }, { type: 'step-end' }],
+        },
+      ],
+    };
+
+    mockOllama.mockReturnValue({});
+    const mockResult = { toUIMessageStreamResponse: jest.fn().mockReturnValue(new Response()) };
+    mockStreamText.mockResolvedValue(mockResult);
+    mockConvertMessages.mockReturnValue([]);
+
+    const req = new NextRequest('http://localhost/api/chat', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+  });
 });

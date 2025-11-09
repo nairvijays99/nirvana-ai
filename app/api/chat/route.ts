@@ -4,14 +4,19 @@ import { convertToModelMessages, streamText } from 'ai';
 import { VALIDATION_ERRORS, SYSTEM_PROMPT } from '@/lib';
 import { z } from 'zod';
 
-const MessagePartSchema = z.object({
-  type: z.enum(['text']),
-  text: z.string().min(1).max(2000),
-});
+const MessagePartSchema = z.union([
+  z.object({
+    type: z.literal('text'),
+    text: z.string().min(1).max(2000),
+  }),
+  z.object({
+    type: z.enum(['step-start', 'step-end']),
+  }),
+]);
 
 const UIMessageSchema = z.object({
   id: z.string(),
-  role: z.enum(['user', 'assistant', 'system']),
+  role: z.enum(['user', 'assistant', 'system', 'tool']),
   parts: z.array(MessagePartSchema),
 });
 

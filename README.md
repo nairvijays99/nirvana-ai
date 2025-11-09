@@ -22,8 +22,6 @@ pnpm dev
 bun dev
 ```
 
-## Test API
+## Phase 2 preview
 
-```
-curl -X POST -H "Content-Type: application/json" -d '{"message": "Who is the President of the United States?"}' http://localhost:3000/api/chat
-```
+<image-card alt="Screenshot" src="doc-images/screenshot.png" ></image-card>
