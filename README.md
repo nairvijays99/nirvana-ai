@@ -2,11 +2,11 @@ Nirvana Ai
 
 Your personal assistant that runs 100% locally
 
-## Prerequsites
+## Prerequisite
 
 - Local Ollama instance
-- `llama3.1:8b` model
-- `embeddinggemma` embedding model
+- `llama3.1:8b` model (or any model of your choice)
+- `embeddinggemma` embedding model (or any model of your choice)
 
 ## Getting Started
 
