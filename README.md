@@ -2,6 +2,8 @@ Nirvana Ai
 
 Your personal assistant that runs 100% locally
 
+Note: This project is WIP
+
 ## Prerequisite
 
 - Local Ollama instance
