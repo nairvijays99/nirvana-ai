@@ -43,13 +43,13 @@ export default function Home() {
             sendMessage({ text: input });
             setInput('');
           }}
-          className="fixed bottom-0  p-2"
+          className="w-full"
         >
           <input
             value={input}
             placeholder="Send message..."
             onChange={e => setInput(e.target.value)}
-            className="p-2 bg-zinc-100 text-black"
+            className="p-2 bg-zinc-100 text-black w-full"
           />
         </form>
       </div>
