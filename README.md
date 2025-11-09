@@ -5,12 +5,12 @@ Your personal assistant that runs 100% locally
 ## Prerequisite
 
 - Local Ollama instance
-- `llama3.1:8b` model (or any model of your choice)
-- `embeddinggemma` embedding model (or any model of your choice)
+- `llama3.1:8b` model (`ollama pull llama3.1:8b`) or any model of your choice
+- `embeddinggemma` embedding model (`ollama pull embeddinggemma`) or any model of your choice
 
 ## Getting Started
 
-First, run the development server:
+Run the development server:
 
 ```bash
 npm run dev
