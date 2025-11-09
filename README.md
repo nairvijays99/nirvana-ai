@@ -24,4 +24,5 @@ bun dev
 
 ## Phase 2 preview
 
-<image-card alt="Screenshot" src="doc-images/screenshot.png" ></image-card>
+<img width="1072" height="1086" alt="NirvanaAi-Phase2-preview" src="https://github.com/user-attachments/assets/5ab2c197-4aa5-4c44-894e-67c00ab873e5" />
+
